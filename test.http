@@ -1,0 +1,129 @@
+### Variables (Replace with your actual values)
+@baseUrl = http://localhost:8000
+@gcsBucket = shkhose-tune-factory
+
+@datasetFile = alpaca_en_demo.json 
+
+### ---------------------------------------
+### Dataset Endpoints
+### ---------------------------------------
+
+### Upload a dataset
+POST {{baseUrl}}/datasets/upload
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="alpaca_en_demo.json"
+Content-Type: application/json
+
+< {{datasetFile}}
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+> {%
+    client.global.set("dataset_gcs_url", response.body.gcs_url);
+    client.log(response.body.gcs_url);
+ %}
+
+### List all datasets
+GET {{baseUrl}}/datasets
+
+
+### Get a specific dataset (replace with a valid gcs_url)
+@gcs_url =gs://shkhose-tune-factory/datasets/alpaca_en_demo.json
+GET {{baseUrl}}/datasets/{{gcs_url}}
+
+### ---------------------------------------
+### Training Endpoints
+### ---------------------------------------
+
+### Generate training config
+POST {{baseUrl}}/training/generate_config
+Content-Type: application/json
+
+{
+  "dataset_dir": "/gcs/{{gcsBucket}}/datasets",
+  "dataset": "alpaca_en_demo",
+  "model_name_or_path": "meta-llama/Meta-Llama-3-8B-Instruct",
+  "output_dir": "/gcs/{{gcsBucket}}/meta-llama/saves/llama3-8b/lora/sft",
+  "training_config": {
+    "learning_rate": "1.0e-4",  
+    "template": "llama3",
+    "stage": "sft",
+    "do_train": "true",
+    "finetuning_type": "lora",
+    "lora_target": "all",
+    "per_device_train_batch_size": "1",
+    "gradient_accumulation_steps": "8",
+    "num_train_epochs": "1.0",
+    "lr_scheduler_type": "cosine",
+    "warmup_ratio": "0.1",
+    "bf16": "true",
+    "ddp_timeout": "180000000",
+    "val_size": "0.1",
+    "per_device_eval_batch_size": "1",
+    "eval_strategy": "steps",
+    "eval_steps": "500"
+  }
+}
+
+# > {%
+#     client.global.set("config_gcs_url", response.body.gcs_url);
+#     client.log(response.body.gcs_url);
+#  %}
+
+### List all training configs
+GET {{baseUrl}}/training/configs
+
+###
+
+### Start a training job
+@config_gcs_url = gs://shkhose-tune-factory/training_configs/training_config_1178797c.yaml
+POST {{baseUrl}}/training/start
+Content-Type: application/json
+
+{
+  "config_gcs_url": "{{config_gcs_url}}"
+}
+
+
+
+### Check training job status
+@job_id= 3604209251972546560
+GET {{baseUrl}}/training/status/{{job_id}}
+
+### ---------------------------------------
+### Deployment Endpoints
+### ---------------------------------------
+
+### Deploy a model on vLLM
+POST {{baseUrl}}/deployment/deploy_vllm 
+Content-Type: application/json
+
+{
+    "model_name": "llama-3-vllm-model-api",
+    "model_id": "meta-llama/Meta-Llama-3-8B-Instruct",
+    "service_account": "<123>-compute@developer.gserviceaccount.com",
+    "machine_type": "g2-standard-8",
+    "accelerator_type": "NVIDIA_L4",
+    "accelerator_count": "1",
+    "gpu_memory_utilization": "0.9",
+    "max_model_len": "4096",
+    "dtype": "auto",
+    "enable_trust_remote_code": "false",
+    "enforce_eager": "false",
+    "enable_lora": "true",
+    "max_loras": "1",
+    "max_cpu_loras": "8",
+    "use_dedicated_endpoint": "false",
+    "max_num_seqs": "256"
+  }
+
+# > {%
+#     client.global.set("endpoint_id", response.body.endpoint_id);
+#     client.log(response.body.endpoint_id);
+#  %}
+
+### Check deployment status
+@endpoint_id=5712755654179946496
+GET {{baseUrl}}/deployment/status/{{endpoint_id}}
